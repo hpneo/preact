@@ -6,7 +6,8 @@ import {
 	TYPE_CLASS,
 	TYPE_ROOT,
 	INHERITED_MODES,
-	TYPE_COMPONENT
+	TYPE_COMPONENT,
+	TYPE_DOM
 } from './constants';
 
 /**
@@ -99,16 +100,9 @@ export function getDomSibling(internal, childIndex) {
 			: null;
 	}
 
-	let sibling;
-	for (; childIndex < internal._children.length; childIndex++) {
-		sibling = internal._children[childIndex];
-
-		if (sibling != null && sibling._dom != null) {
-			// Since updateParentDomPointers keeps _dom pointer correct,
-			// we can rely on _dom to tell us if this subtree contains a
-			// rendered DOM node, and what the first rendered DOM node is
-			return sibling._dom;
-		}
+	let childDom = getChildDom(internal, childIndex);
+	if (childDom) {
+		return childDom;
 	}
 
 	// If we get here, we have not found a DOM node in this vnode's children.
@@ -121,20 +115,29 @@ export function getDomSibling(internal, childIndex) {
 
 /**
  * @param {import('./internal').Internal} internal
+ * @param {number} [i]
+ * @returns {import('./internal').PreactElement}
  */
-export function updateParentDomPointers(internal) {
-	if ((internal = internal._parent) != null && internal._component != null) {
-		internal._dom = null;
-		for (let i = 0; i < internal._children.length; i++) {
-			let child = internal._children[i];
-			if (child != null && child._dom != null) {
-				internal._dom = child._dom;
-				break;
+export function getChildDom(internal, i) {
+	if (internal._children == null) {
+		return null;
+	}
+
+	for (i = i || 0; i < internal._children.length; i++) {
+		let child = internal._children[i];
+		if (child != null) {
+			if (child._flags & TYPE_DOM) {
+				return child._dom;
+			}
+
+			let childDom = getChildDom(child);
+			if (childDom) {
+				return childDom;
 			}
 		}
-
-		return updateParentDomPointers(internal);
 	}
+
+	return null;
 }
 
 /**

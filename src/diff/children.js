@@ -5,12 +5,13 @@ import {
 	TYPE_TEXT,
 	MODE_HYDRATE,
 	MODE_SUSPENDED,
-	EMPTY_ARR
+	EMPTY_ARR,
+	TYPE_DOM
 } from '../constants';
 import { mount } from './mount';
 import { patch } from './patch';
 import { unmount } from './unmount';
-import { createInternal, getDomSibling } from '../tree';
+import { createInternal, getDomSibling, getChildDom } from '../tree';
 
 /**
  * Diff the children of a virtual node
@@ -36,7 +37,7 @@ export function diffChildren(
 	commitQueue,
 	startDom
 ) {
-	let i, j, newDom, firstChildDom, refs;
+	let i, j, newDom, refs;
 
 	/** @type {import('../internal').Internal} */
 	let childInternal;
@@ -163,36 +164,14 @@ export function diffChildren(
 			);
 		}
 
-		if (newDom != null) {
-			if (firstChildDom == null) {
-				firstChildDom = newDom;
-			}
-
-			if (childInternal._flags & TYPE_COMPONENT) {
-				startDom = nextDomSibling;
-			} else if (newDom == startDom) {
-				// If the newDom and the dom we are expecting to be there are the same, then
-				// do nothing
-				startDom = nextDomSibling;
-			} else {
-				startDom = placeChild(parentDom, oldChildrenLength, newDom, startDom);
-			}
-
-			// Browsers will infer an option's `value` from `textContent` when
-			// no value is present. This essentially bypasses our code to set it
-			// later in `diff()`. It works fine in all browsers except for IE11
-			// where it breaks setting `select.value`. There it will be always set
-			// to an empty string. Re-applying an options value will fix that, so
-			// there are probably some internal data structures that aren't
-			// updated properly.
-			//
-			// To fix it we make sure to reset the inferred value, so that our own
-			// value check in `diff()` won't be skipped.
-			if (parentInternal.type === 'option') {
-				// @ts-ignore We have validated that the type of parentDOM is 'option'
-				// in the above check
-				parentDom.value = '';
-			}
+		if (childInternal._flags & TYPE_COMPONENT) {
+			startDom = nextDomSibling;
+		} else if (newDom && newDom == startDom) {
+			// If the newDom and the dom we are expecting to be there are the same, then
+			// do nothing
+			startDom = nextDomSibling;
+		} else if (newDom) {
+			startDom = placeChild(parentDom, oldChildrenLength, newDom, startDom);
 		} else if (
 			startDom &&
 			childInternal != null &&
@@ -204,13 +183,26 @@ export function diffChildren(
 			startDom = nextDomSibling;
 		}
 
+		// Browsers will infer an option's `value` from `textContent` when
+		// no value is present. This essentially bypasses our code to set it
+		// later in `diff()`. It works fine in all browsers except for IE11
+		// where it breaks setting `select.value`. There it will be always set
+		// to an empty string. Re-applying an options value will fix that, so
+		// there are probably some internal data structures that aren't
+		// updated properly.
+		//
+		// To fix it we make sure to reset the inferred value, so that our own
+		// value check in `diff()` won't be skipped.
+		if (parentInternal.type === 'option') {
+			// @ts-ignore We have validated that the type of parentDOM is 'option'
+			// in the above check
+			parentDom.value = '';
+		}
+
 		newChildren[i] = childInternal;
 	}
 
 	parentInternal._children = newChildren;
-
-	// newParentVNode._dom = firstChildDom;
-	parentInternal._dom = firstChildDom;
 
 	// Remove remaining oldChildren if there are any.
 	for (i = oldChildrenLength; i--; ) {
@@ -218,7 +210,9 @@ export function diffChildren(
 			if (
 				parentInternal._flags & TYPE_COMPONENT &&
 				startDom != null &&
-				oldChildren[i]._dom == startDom
+				((oldChildren[i]._flags & TYPE_DOM &&
+					oldChildren[i]._dom == startDom) ||
+					getChildDom(oldChildren[i]) == startDom)
 			) {
 				// If the startDom points to a dom node that is about to be unmounted,
 				// then get the next sibling of that vnode and set startDom to it

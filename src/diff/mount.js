@@ -234,7 +234,7 @@ export function mountChildren(
 	commitQueue,
 	startDom
 ) {
-	let i, childVNode, childInternal, newDom, firstChildDom, mountedNextChild;
+	let i, childVNode, childInternal, newDom, mountedNextChild;
 
 	parentInternal._children = [];
 	for (i = 0; i < renderResult.length; i++) {
@@ -263,22 +263,16 @@ export function mountChildren(
 
 		newDom = childInternal._dom;
 
-		if (newDom != null) {
-			if (firstChildDom == null) {
-				firstChildDom = newDom;
-			}
-
-			if (childInternal._flags & TYPE_COMPONENT || newDom == startDom) {
-				// If the child is a Fragment-like or if it is DOM VNode and its _dom
-				// property matches the dom we are diffing (i.e. startDom), just
-				// continue with the mountedNextChild
-				startDom = mountedNextChild;
-			} else {
-				// The DOM the diff should begin with is now startDom (since we inserted
-				// newDom before startDom) so ignore mountedNextChild and continue with
-				// startDom
-				parentDom.insertBefore(newDom, startDom);
-			}
+		if (childInternal._flags & TYPE_COMPONENT || newDom == startDom) {
+			// If the child is a Fragment-like or if it is DOM VNode and its _dom
+			// property matches the dom we are diffing (i.e. startDom), just
+			// continue with the mountedNextChild
+			startDom = mountedNextChild;
+		} else if (newDom != null) {
+			// The DOM the diff should begin with is now startDom (since we inserted
+			// newDom before startDom) so ignore mountedNextChild and continue with
+			// startDom
+			parentDom.insertBefore(newDom, startDom);
 		}
 
 		if (childInternal.ref) {
@@ -289,8 +283,6 @@ export function mountChildren(
 			);
 		}
 	}
-
-	parentInternal._dom = firstChildDom;
 
 	// Remove children that are not part of any vnode.
 	if (
